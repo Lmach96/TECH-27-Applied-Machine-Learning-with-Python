@@ -106,7 +106,135 @@ print('Breast Cancer shape:', X_bc.shape, ' target n:', y_bc.shape)
 print('\nBrain Tumor class counts:\n', y_bt.value_counts())
 print('\nBreast Cancer class counts:\n', y_bc.value_counts())
 
+"""## 2.1) Dataset overview"""
+
+import numpy as np, pandas as pd, matplotlib.pyplot as plt, seaborn as sns
+from sklearn.feature_selection import mutual_info_classif
+
+plt.rcParams["figure.figsize"] = (7,5)
+plt.rcParams["axes.grid"] = True
+plt.rcParams["grid.alpha"] = 0.4
+plt.rcParams["grid.linestyle"] = "--"
+
+def savefig(name):
+    plt.tight_layout()
+    plt.savefig(name, dpi=300, bbox_inches="tight")
+    plt.show()
+
+def top_features_by_variance(X, k=6):
+    v = X.var().sort_values(ascending=False)
+    return list(v.head(k).index)
+
+def top_features_by_mi(X, y, k=6):
+    # Safe MI even if some cols constant
+    X_ = X.select_dtypes(include=[np.number]).fillna(0.0)
+    mi = mutual_info_classif(X_, y, discrete_features=False, random_state=42)
+    mi = pd.Series(mi, index=X_.columns).sort_values(ascending=False)
+    return list(mi.head(k).index)
+
+"""# 2.1.1) Brain Tumor"""
+
+bt_df = pd.concat([X_bt.copy(), y_bt.rename("Class")], axis=1)
+
+# Peek at the data
+display(bt_df.head(10))           # first 10 rows
+display(bt_df.describe().T)       # stats summary
+
+# dtypes summary
+print("Dtype counts:\n", bt_df.dtypes.value_counts(), "\n")
+
+# class distribution
+cls_counts = bt_df["Class"].value_counts().sort_index()
+ax = cls_counts.plot(kind="bar")
+ax.set_title("Brain Tumor — Class Distribution")
+ax.set_xlabel("Class (0 = no tumor, 1 = tumor)")
+ax.set_ylabel("Count")
+savefig("brain_class_distribution.png")
+
+
+
+
+# Pick a small feature set to visualize (variance or mutual information)
+bt_feats_var = top_features_by_variance(X_bt, k=6)
+try:
+    bt_feats_mi  = top_features_by_mi(X_bt, y_bt, k=6)
+except Exception:
+    bt_feats_mi = bt_feats_var
+
+bt_feats = list(dict.fromkeys(bt_feats_var + bt_feats_mi))[:6]  # merge & keep first 6
+
+# Histograms by class
+for f in bt_feats:
+    plt.figure()
+    for c in sorted(bt_df["Class"].unique()):
+        subset = bt_df.loc[bt_df["Class"]==c, f].values
+        plt.hist(subset, bins=30, alpha=0.5, label=f"Class {c}", density=True)
+    plt.title(f"Brain Tumor — Feature Distribution by Class: {f}")
+    plt.xlabel(f)
+    plt.ylabel("Density")
+    plt.legend()
+    savefig(f"brain_hist_{f}.png")
+
+# Correlation heatmap (features only)
+plt.figure(figsize=(7.5,6))
+corr = X_bt.corr(numeric_only=True)
+sns.heatmap(corr, cmap="vlag", center=0, square=True, cbar_kws={"shrink": .8})
+plt.title("Brain Tumor — Feature Correlation Heatmap")
+savefig("brain_corr_heatmap.png")
+
+"""# 2.1.2) Breast Cancer"""
+
+bc_df = pd.concat([X_bc.copy(), y_bc.rename("Class")], axis=1)
+
+# Peek at the data
+display(bc_df.head(10))
+display(bc_df.describe().T)
+
+# dtypes summary
+print("Dtype counts:\n", bc_df.dtypes.value_counts(), "\n")
+
+# class distribution
+cls_counts = bc_df["Class"].value_counts().sort_index()
+ax = cls_counts.plot(kind="bar")
+ax.set_title("Breast Cancer — Class Distribution")
+ax.set_xlabel("Class (0 = benign, 1 = malignant)")
+ax.set_ylabel("Count")
+savefig("breast_class_distribution.png")
+
+
+
+
+# Select features to visualize
+bc_feats_var = top_features_by_variance(X_bc, k=6)
+try:
+    bc_feats_mi  = top_features_by_mi(X_bc, y_bc, k=6)
+except Exception:
+    bc_feats_mi = bc_feats_var
+
+bc_feats = list(dict.fromkeys(bc_feats_var + bc_feats_mi))[:6]
+
+# Histograms by class
+for f in bc_feats:
+    plt.figure()
+    for c in sorted(bc_df["Class"].unique()):
+        subset = bc_df.loc[bc_df["Class"]==c, f].values
+        plt.hist(subset, bins=30, alpha=0.5, label=f"Class {c}", density=True)
+    plt.title(f"Breast Cancer — Feature Distribution by Class: {f}")
+    plt.xlabel(f)
+    plt.ylabel("Density")
+    plt.legend()
+    savefig(f"breast_hist_{f}.png")
+
+# Correlation heatmap
+plt.figure(figsize=(7.5,6))
+corr = X_bc.corr(numeric_only=True)
+sns.heatmap(corr, cmap="vlag", center=0, square=True, cbar_kws={"shrink": .8})
+plt.title("Breast Cancer — Feature Correlation Heatmap")
+savefig("breast_corr_heatmap.png")
+
 """## 3) Train/Test Split"""
+
+
 
 from sklearn.model_selection import train_test_split
 
@@ -265,6 +393,100 @@ display(bt_results)
 print('\nBreast Cancer results:')
 display(bc_results)
 
+# --- Install/Imports (seaborn is optional but makes clean bars) ---
+# If seaborn isn't installed in your Colab runtime, uncomment:
+# !pip install seaborn
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+sns.set_context("talk")
+sns.set_style("whitegrid")
+plt.rcParams["figure.figsize"] = (10, 6)
+plt.rcParams["savefig.dpi"] = 300
+
+# ---------- Helpers ----------
+def _save(fig, fname):
+    fig.tight_layout()
+    fig.savefig(fname, bbox_inches="tight")
+    print(f"Saved: {fname}")
+
+def _prep_single(df, dataset, metric):
+    d = df.copy()
+    d = d.sort_values(metric, ascending=False)
+    return d
+
+def barplot_single(results_df, dataset_name, metric="f1", filename=None, ylim=None, decimals=3):
+    """
+    Make a bar plot for one dataset, one metric (e.g., f1 or roc_auc).
+    """
+    d = _prep_single(results_df, dataset_name, metric)
+    fig, ax = plt.subplots()
+    ax = sns.barplot(data=d, x="Model", y=metric, color="C0", edgecolor="black")
+    ax.set_title(f"{dataset_name} — Model Comparison ({metric.upper()})")
+    ax.set_xlabel("Model")
+    ax.set_ylabel(metric.upper())
+    ax.set_ylim(0 if ylim is None else ylim[0], 1 if ylim is None else ylim[1])
+    # Annotate bars
+    for p in ax.patches:
+        val = p.get_height()
+        ax.annotate(f"{val:.{decimals}f}", (p.get_x() + p.get_width()/2, val),
+                    ha="center", va="bottom", fontsize=10, xytext=(0,5), textcoords="offset points")
+    plt.xticks(rotation=25, ha="right")
+    plt.tight_layout()
+    if filename:
+        _save(fig, filename)
+    plt.show()
+
+def barplot_grouped(bt_df, bc_df, metric="f1", filename=None, decimals=3):
+    """
+    Grouped bars (BrainTumor vs BreastCancer) per model for one metric.
+    Assumes both tables contain the same set of models (order will follow BrainTumor).
+    """
+    a = bt_df[["Model", metric]].copy()
+    a["Dataset"] = "BrainTumor"
+    b = bc_df[["Model", metric]].copy()
+    b["Dataset"] = "BreastCancer"
+    g = pd.concat([a, b], ignore_index=True)
+
+    # Keep a consistent model order based on BrainTumor ranking
+    order = bt_df.sort_values(metric, ascending=False)["Model"].tolist()
+    fig, ax = plt.subplots(figsize=(12,6))
+    ax = sns.barplot(data=g, x="Model", y=metric, hue="Dataset", order=order, edgecolor="black")
+    ax.set_title(f"Model Comparison Across Datasets ({metric.upper()})")
+    ax.set_xlabel("Model")
+    ax.set_ylabel(metric.upper())
+    # Annotate bars
+    for p in ax.patches:
+        val = p.get_height()
+        ax.annotate(f"{val:.{decimals}f}", (p.get_x() + p.get_width()/2, val),
+                    ha="center", va="bottom", fontsize=9, xytext=(0,4), textcoords="offset points")
+    plt.xticks(rotation=25, ha="right")
+    plt.legend(title="Dataset")
+    plt.tight_layout()
+    if filename:
+        _save(fig, filename)
+    plt.show()
+
+# ---------- Make the plots ----------
+# Ensure the expected columns exist:
+assert {"Model","f1","roc_auc"}.issubset(bt_results.columns)
+assert {"Model","f1","roc_auc"}.issubset(bc_results.columns)
+
+# 1) Single-dataset bars (F1)
+barplot_single(bt_results, "Brain Tumor", metric="f1", filename="BT_model_comparison_F1.png")
+barplot_single(bc_results, "Breast Cancer", metric="f1", filename="BC_model_comparison_F1.png")
+
+# 2) Single-dataset bars (ROC-AUC)
+barplot_single(bt_results, "Brain Tumor", metric="roc_auc", filename="BT_model_comparison_AUC.png")
+barplot_single(bc_results, "Breast Cancer", metric="roc_auc", filename="BC_model_comparison_AUC.png")
+
+# 3) Grouped bars across datasets (same metric)
+barplot_grouped(bt_results, bc_results, metric="f1", filename="Grouped_model_comparison_F1.png")
+barplot_grouped(bt_results, bc_results, metric="roc_auc", filename="Grouped_model_comparison_AUC.png")
+
 """## 7) Plots — Best Model per Dataset
 Confusion Matrix and ROC Curve using the recorded predictions.
 """
@@ -288,7 +510,7 @@ def plot_test_curves(dataset_name, results_df, fitted, Xte, yte):
     plt.show()
 
 plot_test_curves('BrainTumor', bt_results, bt_fitted, X_bt_te, y_bt_te)
-#plot_test_curves('BreastCancer', bc_results, bc_fitted, X_bc_te, y_bc_te)
+plot_test_curves('BreastCancer', bc_results, bc_fitted, X_bc_te, y_bc_te)
 
 """## 8) Notes on Standards, Bias/Ethics, Limitations, and Future Work
 - **Standards & Constraints:** Reproducibility (seeds), leakage avoidance (pipelines), CV splits (stratified), compute-light.
